@@ -34,12 +34,16 @@ Run as a dedicated unprivileged user:
 ```ini
 User=clashtars
 Group=clashtars
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
 WorkingDirectory=/var/lib/clashtars
 ExecStartPre=/usr/bin/clashtars prepare --config /var/lib/clashtars/clash.conf
 ExecStart=/usr/bin/clashtars start --config /var/lib/clashtars/clash.conf
 ```
 
-Ports are above 1024, so no root runtime is needed.
+The RPM creates the `clashtars` user/group in `%pre`. Ports are above 1024, so
+root runtime is not needed, but redir/tproxy needs capabilities and still needs
+host nftables/iptables redirect rules configured separately.
 
 ## Config
 
