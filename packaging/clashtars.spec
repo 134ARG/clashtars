@@ -21,7 +21,7 @@ embedded x86 Mihomo core from memory.
 
 %build
 ./scripts/stage-assets.sh
-GOCACHE="${PWD}/build/go-cache" go build -trimpath -o build/clashtars ./cmd/clashtars
+GOCACHE="${PWD}/build/go-cache" go build -trimpath -buildvcs=false -o build/clashtars ./cmd/clashtars
 
 %install
 rm -rf %{buildroot}

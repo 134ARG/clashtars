@@ -5,6 +5,7 @@ RELEASE ?= 1
 BUILD_DIR := build
 GO ?= go
 GO_CACHE := $(abspath $(BUILD_DIR)/go-cache)
+BUILDVCS ?= auto
 RPM_TOPDIR := $(abspath $(BUILD_DIR)/rpmbuild)
 SOURCE_TAR := $(RPM_TOPDIR)/SOURCES/$(NAME)-$(VERSION).tar.gz
 SPEC_FILE := packaging/$(NAME).spec
@@ -17,10 +18,10 @@ stage-assets:
 	./scripts/stage-assets.sh
 
 build: stage-assets
-	GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -o "$(BUILD_DIR)/clashtars" ./cmd/clashtars
+	GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -buildvcs=$(BUILDVCS) -o "$(BUILD_DIR)/clashtars" ./cmd/clashtars
 
 build-dev:
-	GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -o "$(BUILD_DIR)/clashtars-dev" ./cmd/clashtars
+	GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -buildvcs=$(BUILDVCS) -o "$(BUILD_DIR)/clashtars-dev" ./cmd/clashtars
 
 test:
 	GOCACHE="$(GO_CACHE)" $(GO) test ./...

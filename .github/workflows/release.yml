@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Build binary and RPM
         env:
@@ -52,10 +54,12 @@ jobs:
             -w /work \
             fedora:latest bash -lc '
               set -euo pipefail
-              dnf install -y golang make rpm-build systemd-rpm-macros curl gzip tar findutils sed grep coreutils
+              dnf install -y golang make rpm-build systemd-rpm-macros curl gzip tar findutils sed grep coreutils git
+              git config --global --add safe.directory /work
 
               make test
-              make build VERSION="${VERSION}" RELEASE="${RELEASE}"
+              make build VERSION="${VERSION}" RELEASE="${RELEASE}" BUILDVCS=true
+              go version -m build/clashtars | grep -q "vcs=git"
               make rpm VERSION="${VERSION}" RELEASE="${RELEASE}"
 
               mkdir -p build/release
