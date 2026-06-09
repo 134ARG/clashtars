@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+        default: "0.1.0"
+        type: string
+      release:
+        description: "RPM release"
+        required: true
+        default: "1"
+        type: string
+      tag:
+        description: "Git tag, blank uses v<version>"
+        required: false
+        type: string
+      publish_release:
+        description: "Publish GitHub release"
+        required: true
+        default: true
+        type: boolean
+      prerelease:
+        description: "Mark as prerelease"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build binary and RPM
+        env:
+          VERSION: ${{ inputs.version }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e VERSION="${VERSION}" \
+            -e RELEASE="${RELEASE}" \
+            -v "${PWD}:/work" \
+            -w /work \
+            fedora:latest bash -lc '
+              set -euo pipefail
+              dnf install -y golang make rpm-build systemd-rpm-macros curl gzip tar findutils sed grep coreutils
+
+              make test
+              make build VERSION="${VERSION}" RELEASE="${RELEASE}"
+              make rpm VERSION="${VERSION}" RELEASE="${RELEASE}"
+
+              mkdir -p build/release
+              install -m 0755 build/clashtars build/release/clashtars-linux-amd64
+              find build/rpmbuild/RPMS -type f -name "*.rpm" -exec cp {} build/release/ \;
+              test "$(find build/release -maxdepth 1 -type f -name "*.rpm" | wc -l)" -gt 0
+              chmod -R a+rwX build
+            '
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd build/release
+          sha256sum * > SHA256SUMS
+
+      - name: Release metadata
+        id: meta
+        env:
+          VERSION: ${{ inputs.version }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG}"
+          if [ -z "${tag}" ]; then
+            tag="v${VERSION}"
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: clashtars-${{ steps.meta.outputs.tag }}-linux-amd64
+          path: |
+            build/release/clashtars-linux-amd64
+            build/release/*.rpm
+            build/release/SHA256SUMS
+
+      - name: Publish GitHub release
+        if: ${{ inputs.publish_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Clashtars ${{ steps.meta.outputs.tag }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: true
+          files: |
+            build/release/clashtars-linux-amd64
+            build/release/*.rpm
+            build/release/SHA256SUMS
