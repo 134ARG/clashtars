@@ -29,6 +29,20 @@ sudo systemctl enable --now clashtars
 journalctl -u clashtars -f
 ```
 
+Uninstall keeps edited config, runtime files, and the service user:
+
+```bash
+sudo dnf remove clashtars
+```
+
+Full local purge:
+
+```bash
+sudo rm -rf /var/lib/clashtars
+sudo userdel clashtars
+sudo groupdel clashtars
+```
+
 The package installs:
 
 ```text
