@@ -12,5 +12,3 @@
 !/internal/assets/subconverter/README.txt
 /internal/assets/ui/*
 !/internal/assets/ui/README.txt
-
-go.sum
