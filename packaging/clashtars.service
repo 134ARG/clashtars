@@ -1,0 +1,38 @@
+[Unit]
+Description=Clashtars proxy service
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=clashtars
+Group=clashtars
+WorkingDirectory=/var/lib/clashtars
+ExecStartPre=/usr/bin/clashtars prepare --config /var/lib/clashtars/clash.conf
+ExecStart=/usr/bin/clashtars start --config /var/lib/clashtars/clash.conf
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=300
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clashtars
+StateDirectory=clashtars
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/clashtars
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

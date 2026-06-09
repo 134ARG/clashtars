@@ -1,0 +1,16 @@
+/build/
+
+/clash.conf
+/config.yaml
+/subscription.yaml
+/converted.yaml
+/cache/
+/ui/
+
+/internal/assets/mihomo/mihomo
+/internal/assets/subconverter/*
+!/internal/assets/subconverter/README.txt
+/internal/assets/ui/*
+!/internal/assets/ui/README.txt
+
+go.sum
