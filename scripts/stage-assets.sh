@@ -17,4 +17,4 @@ curl -fL --retry 3 --retry-delay 2 \
 
 curl -fL --retry 3 --retry-delay 2 \
   -o "${root}/internal/assets/ui/compressed-dist.tgz" \
-  "https://github.com/MetaCubeX/metacubexd/releases/download/v1.251.3/compressed-dist.tgz"
+  "https://github.com/MetaCubeX/metacubexd/releases/latest/download/compressed-dist.tgz"
