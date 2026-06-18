@@ -5,11 +5,11 @@
 Build a small Go wrapper for a Clash/Mihomo service:
 
 ```text
-systemd -> prepare(fetch/convert/synthesize) -> start(memfd exec mihomo) -> REST/UI on 9091
+systemd -> prepare(fetch/convert providers + template synthesize) -> start(memfd exec mihomo) -> REST/UI on 9091
 ```
 
-Keep it simple. Fail when there is no usable config. Stay up when an old usable
-config exists and refresh fails.
+Keep it simple. Provider refresh is best effort. Fail only when synthesis cannot
+produce a usable config and no old usable config exists.
 
 ## Runtime Layout
 
@@ -18,9 +18,9 @@ All service-owned files live under one prefix:
 ```text
 /var/lib/clashtars/
   clash.conf          # admin settings, root-owned, readable by clashtars
+  template.yaml       # admin-maintained Mihomo routing template
   config.yaml         # generated Mihomo config
-  subscription.yaml   # last fetched raw subscription
-  converted.yaml      # converted Clash profile
+  providers/          # raw, converted, and provider YAML files
   ui/                 # dashboard assets
   cache/
 ```
@@ -51,26 +51,45 @@ host nftables/iptables redirect rules configured separately.
 
 ```yaml
 subscription:
-  url: "https://example.invalid/sub"
+  timeout: 30s
+  user-agent: clashtars/1.0
+  providers:
+    - name: main
+      url: "https://example.invalid/sub"
+      prefix: "[main] "
 
 mihomo:
   port: 7890
   socks-port: 7891
   redir-port: 7892
-  allow-lan: true
+  mixed-port: 7893
+  allow-lan: false
   mode: rule
-  log-level: silent
+  log-level: info
   external-controller: "0.0.0.0:9091"
+  external-ui: "/var/lib/clashtars/ui"
   secret: ""
+  profile:
+    tracing: true
+    store-selected: true
+  dns:
+    enable: true
+    ipv6: false
+    listen: 0.0.0.0:53
+    nameserver:
+      - 100.100.100.100
+      - 119.29.29.29
+      - 223.5.5.5
 ```
 
-`mihomo:` is passed through as structured YAML, so extra final `config.yaml`
-keys can be added without code changes.
-YAML comments are fine; they are only template hints and are not preserved.
+`mihomo:` is overlaid onto the final generated Mihomo config, so short
+operational settings stay in `clash.conf`. `template.yaml` is passed through as
+structured YAML and should define long routing policy such as `proxy-groups` and
+`rules`; use `__PROVIDER_PLACEHOLDER__` inside a group's `use` list to insert
+all configured provider names.
 
-For standalone use, run from a directory containing `clash.conf`; generated
-files go beside that config unless `runtime.root-dir` is set. The systemd unit
-passes `/var/lib/clashtars/clash.conf` explicitly.
+Runtime files are written under the current working directory. The systemd unit
+uses `/var/lib/clashtars` as `WorkingDirectory`.
 
 ## Go Shape
 
@@ -92,7 +111,7 @@ clashtars/
 One CLI, two commands:
 
 ```text
-clashtars prepare --config /var/lib/clashtars/clash.conf
+clashtars prepare --config /var/lib/clashtars/clash.conf --template /var/lib/clashtars/template.yaml
 clashtars start --config /var/lib/clashtars/clash.conf
 ```
 
@@ -102,20 +121,22 @@ first, then emits the usable single binary at `build/clashtars`.
 ## Prepare
 
 1. Load `clash.conf`.
-2. Fetch subscription.
-3. If fetch fails:
-   - use existing non-empty `config.yaml` and exit success;
-   - otherwise fail.
-4. Convert only when needed:
-   - Clash YAML: use directly;
-   - base64 Clash YAML: decode;
-   - otherwise extract and run embedded subconverter.
-5. Parse YAML with `yaml.v3`.
-6. Synthesize final config:
-   - start from `mihomo:`;
-   - embed subscription `proxies`, `proxy-groups`, `rules`, providers;
+2. Load `template.yaml`.
+3. For each `subscription.providers[]`, try to refresh its local provider file:
+   - fetch the subscription;
+   - use Clash/provider YAML directly when it already has `proxies`;
+   - decode base64 YAML when needed;
+   - otherwise extract and run embedded subconverter;
+   - extract only top-level `proxies`;
+   - write `providers/<name>.yaml` atomically.
+4. Refresh failures are warnings and leave old provider files untouched.
+5. Synthesize final config:
+   - start from `template.yaml`;
+   - overlay `mihomo:` from `clash.conf`;
+   - inject `proxy-providers` for local provider files;
+   - expand `__PROVIDER_PLACEHOLDER__`;
    - write `config.yaml` atomically.
-7. If conversion/parsing/synthesis fails, use old `config.yaml` if present;
+6. If synthesis fails, use old `config.yaml` if present;
    otherwise fail.
 
 ## Start
@@ -125,7 +146,7 @@ first, then emits the usable single binary at `build/clashtars`.
 3. Load embedded Mihomo bytes.
 4. Execute embedded Mihomo from RAM with `memfd_create`.
 5. Inherit stdout/stderr.
-6. Use the config directory as Mihomo config directory.
+6. Use the current working directory as Mihomo config directory.
 
 No binary selection. x86 only.
 
@@ -140,6 +161,7 @@ RPM packaging is auxiliary. It builds from the same source shape and installs:
 ```text
 /usr/bin/clashtars
 /var/lib/clashtars/clash.conf
+/var/lib/clashtars/template.yaml
 /var/lib/clashtars/ui/
 /usr/lib/systemd/system/clashtars.service
 ```
@@ -151,14 +173,14 @@ during asset staging. MetacubeXD is downloaded from release `v1.251.3` as
 `compressed-dist.tgz`, embedded, and extracted to `ui/` at start.
 
 Geo DBs are not staged or packaged for now. If needed, users can provide them
-through explicit Mihomo config.
+through `template.yaml`.
 
 ## Tests
 
 Cover only the risky wrapper behavior:
 
-- config load and defaults;
-- YAML synthesis;
-- fetch failure with old config succeeds;
-- fetch failure without old config fails;
+- config load and provider defaults;
+- template/provider YAML synthesis;
+- refresh failure with old config succeeds;
+- refresh failure without old config fails;
 - memfd start path can be constructed.

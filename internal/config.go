@@ -12,19 +12,26 @@ import (
 )
 
 const (
-	defaultConfigName = "clash.conf"
-	defaultTimeout    = 30 * time.Second
+	defaultConfigName   = "clash.conf"
+	defaultTemplateName = "template.yaml"
+	defaultTimeout      = 30 * time.Second
 )
 
 type Settings struct {
 	ConfigPath string
 	RootDir    string
 
-	SubscriptionURL string
-	Timeout         time.Duration
-	UserAgent       string
+	Timeout   time.Duration
+	UserAgent string
 
-	Mihomo *yaml.Node
+	Mihomo    *yaml.Node
+	Providers []Provider
+}
+
+type Provider struct {
+	Name   string
+	URL    string
+	Prefix string
 }
 
 func LoadSettings(configPath string) (*Settings, error) {
@@ -48,26 +55,16 @@ func LoadSettings(configPath string) (*Settings, error) {
 
 	settings := &Settings{
 		ConfigPath: absPath,
-		RootDir:    filepath.Dir(absPath),
+		RootDir:    mustGetwd(),
 		Timeout:    defaultTimeout,
 		UserAgent:  "clashtars/1.0",
 		Mihomo:     newMappingNode(),
-	}
-
-	if runtime := mapValue(root, "runtime"); runtime != nil {
-		if runtime.Kind != yaml.MappingNode {
-			return nil, fmt.Errorf("runtime must be a mapping")
-		}
-		if rootDir := scalarString(mapValue(runtime, "root-dir")); rootDir != "" {
-			settings.RootDir = rootDir
-		}
 	}
 
 	if sub := mapValue(root, "subscription"); sub != nil {
 		if sub.Kind != yaml.MappingNode {
 			return nil, fmt.Errorf("subscription must be a mapping")
 		}
-		settings.SubscriptionURL = scalarString(mapValue(sub, "url"))
 		if timeout := scalarString(mapValue(sub, "timeout")); timeout != "" {
 			parsed, err := time.ParseDuration(timeout)
 			if err != nil {
@@ -78,6 +75,11 @@ func LoadSettings(configPath string) (*Settings, error) {
 		if ua := scalarString(mapValue(sub, "user-agent")); ua != "" {
 			settings.UserAgent = ua
 		}
+		providers, err := parseProviders(mapValue(sub, "providers"))
+		if err != nil {
+			return nil, err
+		}
+		settings.Providers = providers
 	}
 
 	if mihomo := mapValue(root, "mihomo"); mihomo != nil {
@@ -86,7 +88,11 @@ func LoadSettings(configPath string) (*Settings, error) {
 		}
 		settings.Mihomo = cloneNode(mihomo)
 	}
-	applyMihomoDefaults(settings)
+	applyMihomoDefaults(settings.Mihomo, settings.RootDir)
+
+	if len(settings.Providers) == 0 {
+		return nil, fmt.Errorf("subscription.providers must contain at least one provider")
+	}
 
 	return settings, nil
 }
@@ -95,12 +101,20 @@ func (s *Settings) ConfigYAMLPath() string {
 	return filepath.Join(s.RootDir, "config.yaml")
 }
 
-func (s *Settings) SubscriptionPath() string {
-	return filepath.Join(s.RootDir, "subscription.yaml")
+func (s *Settings) ProvidersDir() string {
+	return filepath.Join(s.RootDir, "providers")
 }
 
-func (s *Settings) ConvertedPath() string {
-	return filepath.Join(s.RootDir, "converted.yaml")
+func (s *Settings) ProviderRawPath(name string) string {
+	return filepath.Join(s.ProvidersDir(), name+".raw")
+}
+
+func (s *Settings) ProviderConvertedPath(name string) string {
+	return filepath.Join(s.ProvidersDir(), name+".converted.yaml")
+}
+
+func (s *Settings) ProviderYAMLPath(name string) string {
+	return filepath.Join(s.ProvidersDir(), name+".yaml")
 }
 
 func (s *Settings) CacheDir() string {
@@ -118,7 +132,7 @@ func (s *Settings) SubconverterDir() string {
 	return filepath.Join(s.CacheDir(), "subconverter")
 }
 
-func applyMihomoDefaults(s *Settings) {
+func applyMihomoDefaults(root *yaml.Node, rootDir string) {
 	defaults := []struct {
 		key string
 		val *yaml.Node
@@ -130,14 +144,76 @@ func applyMihomoDefaults(s *Settings) {
 		{"mode", scalarStr("rule")},
 		{"log-level", scalarStr("silent")},
 		{"external-controller", scalarStr("0.0.0.0:9091")},
-		{"external-ui", scalarStr(s.UIDir())},
+		{"external-ui", scalarStr(filepath.Join(rootDir, "ui"))},
 		{"secret", scalarStr("")},
 	}
 	for _, item := range defaults {
-		if mapValue(s.Mihomo, item.key) == nil {
-			setMapValue(s.Mihomo, item.key, item.val)
+		if mapValue(root, item.key) == nil {
+			setMapValue(root, item.key, item.val)
 		}
 	}
+}
+
+func mustGetwd() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "."
+	}
+	return wd
+}
+
+func parseProviders(node *yaml.Node) ([]Provider, error) {
+	if node == nil {
+		return nil, fmt.Errorf("subscription.providers is required")
+	}
+	if node.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("subscription.providers must be a sequence")
+	}
+
+	seen := map[string]bool{}
+	var providers []Provider
+	for i, item := range node.Content {
+		if item.Kind != yaml.MappingNode {
+			return nil, fmt.Errorf("subscription.providers[%d] must be a mapping", i)
+		}
+		provider := Provider{
+			Name: scalarString(mapValue(item, "name")),
+			URL:  scalarString(mapValue(item, "url")),
+		}
+		if provider.Name == "" {
+			return nil, fmt.Errorf("subscription.providers[%d].name is required", i)
+		}
+		if !validProviderName(provider.Name) {
+			return nil, fmt.Errorf("subscription.providers[%d].name %q must use only letters, digits, '.', '_' or '-'", i, provider.Name)
+		}
+		if seen[provider.Name] {
+			return nil, fmt.Errorf("duplicate provider name %q", provider.Name)
+		}
+		seen[provider.Name] = true
+		if provider.URL == "" {
+			return nil, fmt.Errorf("subscription.providers[%d].url is required", i)
+		}
+		if prefix := mapValue(item, "prefix"); prefix != nil {
+			provider.Prefix = scalarRawString(prefix)
+		} else {
+			provider.Prefix = fmt.Sprintf("[%s] ", provider.Name)
+		}
+		providers = append(providers, provider)
+	}
+	return providers, nil
+}
+
+func validProviderName(name string) bool {
+	for _, r := range name {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			continue
+		}
+		if r == '.' || r == '_' || r == '-' {
+			continue
+		}
+		return false
+	}
+	return name != "." && name != ".."
 }
 
 func parseYAMLMapping(data []byte) (*yaml.Node, error) {
@@ -186,6 +262,13 @@ func scalarString(node *yaml.Node) string {
 		return ""
 	}
 	return strings.TrimSpace(node.Value)
+}
+
+func scalarRawString(node *yaml.Node) string {
+	if node == nil {
+		return ""
+	}
+	return node.Value
 }
 
 func scalarStr(value string) *yaml.Node {

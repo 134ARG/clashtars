@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 type PrepareOptions struct {
@@ -11,15 +12,22 @@ type PrepareOptions struct {
 	Log   func(string, ...any)
 }
 
-func Prepare(ctx context.Context, configPath string) error {
+func Prepare(ctx context.Context, configPath string, templatePath string) error {
+	if templatePath == "" {
+		templatePath = defaultTemplateName
+	}
+	absTemplatePath, err := filepath.Abs(templatePath)
+	if err != nil {
+		return err
+	}
 	settings, err := LoadSettings(configPath)
 	if err != nil {
 		return err
 	}
-	return PrepareSettings(ctx, settings, PrepareOptions{})
+	return PrepareSettings(ctx, settings, absTemplatePath, PrepareOptions{})
 }
 
-func PrepareSettings(ctx context.Context, settings *Settings, opts PrepareOptions) error {
+func PrepareSettings(ctx context.Context, settings *Settings, templatePath string, opts PrepareOptions) error {
 	if opts.Fetch == nil {
 		opts.Fetch = FetchSubscription
 	}
@@ -33,23 +41,18 @@ func PrepareSettings(ctx context.Context, settings *Settings, opts PrepareOption
 		return err
 	}
 
-	raw, err := opts.Fetch(ctx, settings)
-	if err != nil {
-		return useExistingConfig(settings, opts.Log, fmt.Sprintf("subscription refresh failed: %v", err))
-	}
-	if err := atomicWriteFile(settings.SubscriptionPath(), raw, 0640); err != nil {
-		return useExistingConfig(settings, opts.Log, fmt.Sprintf("writing subscription failed: %v", err))
+	for _, provider := range settings.Providers {
+		if err := refreshProvider(ctx, settings, provider, opts); err != nil {
+			opts.Log("warning: provider %q refresh failed: %v; using existing provider file if available", provider.Name, err)
+		}
 	}
 
-	converted, err := ConvertSubscription(ctx, settings, raw)
+	template, err := os.ReadFile(templatePath)
 	if err != nil {
-		return useExistingConfig(settings, opts.Log, fmt.Sprintf("subscription conversion failed: %v", err))
-	}
-	if err := atomicWriteFile(settings.ConvertedPath(), converted, 0640); err != nil {
-		return useExistingConfig(settings, opts.Log, fmt.Sprintf("writing converted profile failed: %v", err))
+		return useExistingConfig(settings, opts.Log, fmt.Sprintf("reading template failed: %v", err))
 	}
 
-	finalConfig, err := SynthesizeConfig(settings, converted)
+	finalConfig, err := SynthesizeConfig(settings, template)
 	if err != nil {
 		return useExistingConfig(settings, opts.Log, fmt.Sprintf("config synthesis failed: %v", err))
 	}
@@ -61,11 +64,39 @@ func PrepareSettings(ctx context.Context, settings *Settings, opts PrepareOption
 	return nil
 }
 
+func refreshProvider(ctx context.Context, settings *Settings, provider Provider, opts PrepareOptions) error {
+	raw, err := opts.Fetch(ctx, settings, provider)
+	if err != nil {
+		return err
+	}
+	if err := atomicWriteFile(settings.ProviderRawPath(provider.Name), raw, 0640); err != nil {
+		return fmt.Errorf("writing raw subscription: %w", err)
+	}
+
+	converted, err := ConvertSubscription(ctx, settings, provider, raw)
+	if err != nil {
+		return err
+	}
+	if err := atomicWriteFile(settings.ProviderConvertedPath(provider.Name), converted, 0640); err != nil {
+		return fmt.Errorf("writing converted profile: %w", err)
+	}
+
+	providerProfile, err := ExtractProviderProfile(converted)
+	if err != nil {
+		return err
+	}
+	if err := atomicWriteFile(settings.ProviderYAMLPath(provider.Name), providerProfile, 0640); err != nil {
+		return fmt.Errorf("writing provider profile: %w", err)
+	}
+	return nil
+}
+
 func ensureRuntimeDirs(settings *Settings) error {
 	for _, dir := range []string{
 		settings.RootDir,
 		settings.CacheDir(),
 		settings.UIDir(),
+		settings.ProvidersDir(),
 	} {
 		if err := os.MkdirAll(dir, 0750); err != nil {
 			return err
@@ -87,5 +118,5 @@ func existingConfigUsable(path string) bool {
 	if err != nil || len(data) == 0 {
 		return false
 	}
-	return isClashProfile(data)
+	return isGeneratedConfig(data)
 }

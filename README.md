@@ -3,7 +3,7 @@
 Small Mihomo wrapper:
 
 ```text
-prepare -> fetch/convert/synthesize config.yaml
+prepare -> fetch/convert providers, synthesize config.yaml from template.yaml
 start   -> extract UI, exec embedded Mihomo
 ```
 
@@ -20,9 +20,10 @@ Edit the installed config:
 
 ```bash
 sudo nano /var/lib/clashtars/clash.conf
+sudo nano /var/lib/clashtars/template.yaml
 ```
 
-Set `subscription.url`, then run:
+Set `subscription.providers[].url`, then run:
 
 ```bash
 sudo systemctl enable --now clashtars
@@ -48,6 +49,7 @@ The package installs:
 ```text
 /usr/bin/clashtars
 /var/lib/clashtars/clash.conf
+/var/lib/clashtars/template.yaml
 /var/lib/clashtars/ui/
 /usr/lib/systemd/system/clashtars.service
 ```
@@ -66,22 +68,24 @@ Use it from any writable directory:
 mkdir -p /tmp/clashtars
 cp build/clashtars /tmp/clashtars/
 cp configs/clash.conf.example /tmp/clashtars/clash.conf
+cp configs/template.yaml.example /tmp/clashtars/template.yaml
 cd /tmp/clashtars
 ```
 
-Edit `clash.conf`, set `subscription.url`, then run:
+Edit `clash.conf`, set `subscription.providers[].url`, and adjust `mihomo:`
+ports/UI/controller settings as needed. Keep long routing policy in
+`template.yaml`, then run:
 
 ```bash
 ./clashtars prepare
 ./clashtars start
 ```
 
-Runtime files stay beside `clash.conf`:
+Runtime files stay in the current working directory:
 
 ```text
 config.yaml
-subscription.yaml
-converted.yaml
+providers/
 cache/
 ui/
 ```

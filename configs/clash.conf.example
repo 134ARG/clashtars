@@ -1,16 +1,46 @@
 subscription:
-  url: "https://example.invalid/subscription"
   timeout: "30s"
   user-agent: "clashtars/1.0"
+  providers:
+    - name: main
+      url: "https://example.invalid/subscription"
+      # Optional. Defaults to "[main] ". Use "" to disable prefixing.
+      prefix: "[main] "
 
 mihomo:
   port: 7890
   socks-port: 7891
   redir-port: 7892
-  allow-lan: true
+  mixed-port: 7893
+  allow-lan: false
   mode: rule
-  log-level: silent
+  log-level: info
   external-controller: "0.0.0.0:9091"
-  # Optional. Defaults to the ui/ directory beside this file.
+  # Optional. Defaults to the ui/ directory under the working directory.
   # external-ui: "/var/lib/clashtars/ui"
   secret: ""
+  profile:
+    tracing: true
+    store-selected: true
+  dns:
+    enable: true
+    ipv6: false
+    listen: 0.0.0.0:53
+    fake-ip-filter:
+      - "*.lan"
+      - "*.srv.nintendo.net"
+      - "*.stun.playstation.net"
+      - xbox.*.microsoft.com
+      - "*.xboxlive.com"
+      - "*.teafone.com"
+      - "*.sktswe.net"
+      - rtc.goodfone.co.kr
+      - "*.chattti.com"
+    nameserver:
+      - 100.100.100.100
+      - 119.29.29.29
+      - 223.5.5.5
+      - tls://223.5.5.5:853
+      - tls://223.6.6.6:853
+      - tls://120.53.53.53
+      - tls://1.12.12.12

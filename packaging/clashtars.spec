@@ -31,6 +31,7 @@ install -D -m 0644 packaging/clashtars.service %{buildroot}%{_unitdir}/clashtars
 
 install -d -m 0750 %{buildroot}%{_sharedstatedir}/clashtars
 install -D -m 0640 configs/clash.conf.example %{buildroot}%{_sharedstatedir}/clashtars/clash.conf
+install -D -m 0640 configs/template.yaml.example %{buildroot}%{_sharedstatedir}/clashtars/template.yaml
 
 install -d -m 0750 %{buildroot}%{_sharedstatedir}/clashtars/ui
 
@@ -54,6 +55,7 @@ getent passwd clashtars >/dev/null || \
 %{_unitdir}/clashtars.service
 %dir %attr(0750,clashtars,clashtars) %{_sharedstatedir}/clashtars
 %config(noreplace) %attr(0640,root,clashtars) %{_sharedstatedir}/clashtars/clash.conf
+%config(noreplace) %attr(0640,root,clashtars) %{_sharedstatedir}/clashtars/template.yaml
 %dir %attr(0750,clashtars,clashtars) %{_sharedstatedir}/clashtars/ui
 
 %changelog

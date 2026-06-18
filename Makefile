@@ -50,9 +50,11 @@ $(SOURCE_TAR): FORCE
 		--exclude='./.git' \
 		--exclude='./build' \
 		--exclude='./clash.conf' \
+		--exclude='./template.yaml' \
 		--exclude='./config.yaml' \
 		--exclude='./subscription.yaml' \
 		--exclude='./converted.yaml' \
+		--exclude='./providers' \
 		--exclude='./cache' \
 		--exclude='./ui' \
 		--exclude='./runtime' \

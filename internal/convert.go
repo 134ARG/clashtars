@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func ConvertSubscription(ctx context.Context, settings *Settings, raw []byte) ([]byte, error) {
+func ConvertSubscription(ctx context.Context, settings *Settings, provider Provider, raw []byte) ([]byte, error) {
 	if isClashProfile(raw) {
 		return raw, nil
 	}
@@ -20,7 +20,7 @@ func ConvertSubscription(ctx context.Context, settings *Settings, raw []byte) ([
 		return decoded, nil
 	}
 
-	return runSubconverter(ctx, settings)
+	return runSubconverter(ctx, settings, provider)
 }
 
 func decodeBase64(data []byte) ([]byte, error) {
@@ -42,7 +42,7 @@ func decodeBase64(data []byte) ([]byte, error) {
 	return nil, lastErr
 }
 
-func runSubconverter(ctx context.Context, settings *Settings) ([]byte, error) {
+func runSubconverter(ctx context.Context, settings *Settings, provider Provider) ([]byte, error) {
 	if err := ExtractEmbeddedSubconverter(settings.SubconverterDir()); err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ path=%s
 target=clash
 ver=4
 url=%s
-`, settings.ConvertedPath(), settings.SubscriptionPath())
+`, settings.ProviderConvertedPath(provider.Name), settings.ProviderRawPath(provider.Name))
 	if err := atomicWriteFile(filepath.Join(settings.SubconverterDir(), "generate.ini"), []byte(generateINI), 0644); err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ url=%s
 		return nil, fmt.Errorf("subconverter failed: %w", err)
 	}
 
-	converted, err := os.ReadFile(settings.ConvertedPath())
+	converted, err := os.ReadFile(settings.ProviderConvertedPath(provider.Name))
 	if err != nil {
 		return nil, err
 	}

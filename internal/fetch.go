@@ -10,25 +10,25 @@ import (
 	"strings"
 )
 
-type FetchFunc func(context.Context, *Settings) ([]byte, error)
+type FetchFunc func(context.Context, *Settings, Provider) ([]byte, error)
 
-func FetchSubscription(ctx context.Context, settings *Settings) ([]byte, error) {
-	if settings.SubscriptionURL == "" {
-		return nil, fmt.Errorf("subscription.url is empty")
+func FetchSubscription(ctx context.Context, settings *Settings, provider Provider) ([]byte, error) {
+	if provider.URL == "" {
+		return nil, fmt.Errorf("provider %q url is empty", provider.Name)
 	}
 
-	parsed, err := url.Parse(settings.SubscriptionURL)
+	parsed, err := url.Parse(provider.URL)
 	if err == nil && parsed.Scheme == "file" {
 		return os.ReadFile(parsed.Path)
 	}
-	if err == nil && parsed.Scheme == "" && strings.HasPrefix(settings.SubscriptionURL, "/") {
-		return os.ReadFile(settings.SubscriptionURL)
+	if err == nil && parsed.Scheme == "" && strings.HasPrefix(provider.URL, "/") {
+		return os.ReadFile(provider.URL)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, settings.Timeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, settings.SubscriptionURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.URL, nil)
 	if err != nil {
 		return nil, err
 	}
