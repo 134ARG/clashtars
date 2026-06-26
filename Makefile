@@ -4,6 +4,7 @@ RELEASE ?= 1
 
 BUILD_DIR := build
 GO ?= go
+CGO_ENABLED ?= 0
 GO_CACHE := $(abspath $(BUILD_DIR)/go-cache)
 BUILDVCS ?= auto
 RPM_TOPDIR := $(abspath $(BUILD_DIR)/rpmbuild)
@@ -22,10 +23,10 @@ stage-assets:
 	./scripts/stage-assets.sh
 
 build: stage-assets
-	GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -buildvcs=$(BUILDVCS) -o "$(BUILD_DIR)/clashtars" ./cmd/clashtars
+	CGO_ENABLED=$(CGO_ENABLED) GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -buildvcs=$(BUILDVCS) -o "$(BUILD_DIR)/clashtars" ./cmd/clashtars
 
 build-dev:
-	GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -buildvcs=$(BUILDVCS) -o "$(BUILD_DIR)/clashtars-dev" ./cmd/clashtars
+	CGO_ENABLED=$(CGO_ENABLED) GOCACHE="$(GO_CACHE)" $(GO) build -trimpath -buildvcs=$(BUILDVCS) -o "$(BUILD_DIR)/clashtars-dev" ./cmd/clashtars
 
 test:
 	GOCACHE="$(GO_CACHE)" $(GO) test ./...
