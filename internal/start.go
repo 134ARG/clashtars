@@ -15,6 +15,10 @@ func Start(configPath string) error {
 		return err
 	}
 
+	if err := ExtractEmbeddedGeo(settings.RootDir); err != nil {
+		return err
+	}
+
 	core, err := EmbeddedMihomo()
 	if err != nil {
 		return err

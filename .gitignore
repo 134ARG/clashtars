@@ -12,3 +12,5 @@
 !/internal/assets/subconverter/README.txt
 /internal/assets/ui/*
 !/internal/assets/ui/README.txt
+/internal/assets/geo/*
+!/internal/assets/geo/README.txt

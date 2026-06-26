@@ -14,8 +14,31 @@ import (
 	"strings"
 )
 
-//go:embed assets/mihomo assets/subconverter assets/ui
+//go:embed assets/mihomo assets/subconverter assets/ui assets/geo
 var embeddedAssets embed.FS
+
+// ExtractEmbeddedGeo seeds the GeoIP database into rootDir so Mihomo does not
+// need to download it on first run. Existing files are left untouched so
+// Mihomo's own auto-updates persist across restarts.
+func ExtractEmbeddedGeo(rootDir string) error {
+	data, err := embeddedAssets.ReadFile("assets/geo/geoip.metadb")
+	if err != nil {
+		return fmt.Errorf("embedded geoip.metadb asset missing; run scripts/stage-assets.sh before release builds")
+	}
+	if len(data) == 0 {
+		return fmt.Errorf("embedded geoip.metadb asset is empty")
+	}
+	target := filepath.Join(rootDir, "geoip.metadb")
+	if _, err := os.Stat(target); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.MkdirAll(rootDir, 0750); err != nil {
+		return err
+	}
+	return atomicWriteFile(target, data, 0644)
+}
 
 func EmbeddedMihomo() ([]byte, error) {
 	data, err := embeddedAssets.ReadFile("assets/mihomo/mihomo")
