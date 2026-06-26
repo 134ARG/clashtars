@@ -41,7 +41,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build binary and RPM
+      - name: Build binary, RPM and DEB
         env:
           VERSION: ${{ inputs.version }}
           RELEASE: ${{ inputs.release }}
@@ -54,18 +54,21 @@ jobs:
             -w /work \
             fedora:latest bash -lc '
               set -euo pipefail
-              dnf install -y golang make rpm-build systemd-rpm-macros curl gzip tar findutils sed grep coreutils git
+              dnf install -y golang make rpm-build systemd-rpm-macros dpkg dpkg-dev curl gzip tar findutils sed grep coreutils git
               git config --global --add safe.directory /work
 
               make test
               make build VERSION="${VERSION}" RELEASE="${RELEASE}" BUILDVCS=true
               go version -m build/clashtars | grep -q "vcs=git"
               make rpm VERSION="${VERSION}" RELEASE="${RELEASE}"
+              make deb VERSION="${VERSION}" RELEASE="${RELEASE}"
 
               mkdir -p build/release
               install -m 0755 build/clashtars build/release/clashtars-linux-amd64
               find build/rpmbuild/RPMS -type f -name "*.rpm" -exec cp {} build/release/ \;
+              find build -maxdepth 1 -type f -name "*.deb" -exec cp {} build/release/ \;
               test "$(find build/release -maxdepth 1 -type f -name "*.rpm" | wc -l)" -gt 0
+              test "$(find build/release -maxdepth 1 -type f -name "*.deb" | wc -l)" -gt 0
               chmod -R a+rwX build
             '
 
@@ -95,6 +98,7 @@ jobs:
           path: |
             build/release/clashtars-linux-amd64
             build/release/*.rpm
+            build/release/*.deb
             build/release/SHA256SUMS
 
       - name: Publish GitHub release
@@ -108,4 +112,5 @@ jobs:
           files: |
             build/release/clashtars-linux-amd64
             build/release/*.rpm
+            build/release/*.deb
             build/release/SHA256SUMS

@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        if ! getent group clashtars >/dev/null; then
+            addgroup --system clashtars
+        fi
+        if ! getent passwd clashtars >/dev/null; then
+            adduser --system --ingroup clashtars \
+                --home /var/lib/clashtars --no-create-home \
+                --shell /usr/sbin/nologin \
+                --gecos "Clashtars service user" \
+                clashtars
+        fi
+
+        chown clashtars:clashtars /var/lib/clashtars
+        chmod 0750 /var/lib/clashtars
+        chown clashtars:clashtars /var/lib/clashtars/ui
+        chmod 0750 /var/lib/clashtars/ui
+        chown root:clashtars /var/lib/clashtars/clash.conf
+        chmod 0640 /var/lib/clashtars/clash.conf
+        chown root:clashtars /var/lib/clashtars/template.yaml
+        chmod 0640 /var/lib/clashtars/template.yaml
+
+        if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload >/dev/null 2>&1 || true
+            if [ -z "$2" ]; then
+                systemctl preset clashtars.service >/dev/null 2>&1 || true
+            else
+                systemctl try-restart clashtars.service >/dev/null 2>&1 || true
+            fi
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+esac
+
+exit 0

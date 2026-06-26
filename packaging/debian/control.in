@@ -1,0 +1,10 @@
+Package: clashtars
+Version: @VERSION@
+Section: net
+Priority: optional
+Architecture: amd64
+Maintainer: Codex <codex@example.invalid>
+Depends: systemd, adduser
+Description: Clashtars Mihomo service wrapper
+ Clashtars is a small Go wrapper that prepares a Mihomo config and starts
+ an embedded x86 Mihomo core from memory.

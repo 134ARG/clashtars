@@ -10,7 +10,11 @@ RPM_TOPDIR := $(abspath $(BUILD_DIR)/rpmbuild)
 SOURCE_TAR := $(RPM_TOPDIR)/SOURCES/$(NAME)-$(VERSION).tar.gz
 SPEC_FILE := packaging/$(NAME).spec
 
-.PHONY: all build build-dev test stage-assets rpm source clean FORCE
+DEB_TOPDIR := $(abspath $(BUILD_DIR)/debbuild)
+DEB_ROOT := $(DEB_TOPDIR)/$(NAME)_$(VERSION)-$(RELEASE)_amd64
+DEB_FILE := $(BUILD_DIR)/$(NAME)_$(VERSION)-$(RELEASE)_amd64.deb
+
+.PHONY: all build build-dev test stage-assets rpm deb source clean FORCE
 
 all: build
 
@@ -36,6 +40,25 @@ rpm: $(SOURCE_TAR)
 		$(SPEC_FILE)
 	@printf '\nRPM package(s):\n'
 	@find "$(RPM_TOPDIR)/RPMS" -type f -name '*.rpm' -print
+
+deb:
+	@test -f "$(BUILD_DIR)/clashtars" || { echo "$(BUILD_DIR)/clashtars not found; run 'make build' first" >&2; exit 1; }
+	rm -rf "$(DEB_TOPDIR)"
+	mkdir -p "$(DEB_ROOT)/DEBIAN"
+	mkdir -p "$(DEB_ROOT)/usr/bin"
+	mkdir -p "$(DEB_ROOT)/lib/systemd/system"
+	mkdir -p "$(DEB_ROOT)/var/lib/clashtars/ui"
+	install -m 0755 "$(BUILD_DIR)/clashtars" "$(DEB_ROOT)/usr/bin/clashtars"
+	install -m 0644 packaging/clashtars.service "$(DEB_ROOT)/lib/systemd/system/clashtars.service"
+	install -m 0640 configs/clash.conf.example "$(DEB_ROOT)/var/lib/clashtars/clash.conf"
+	install -m 0640 configs/template.yaml.example "$(DEB_ROOT)/var/lib/clashtars/template.yaml"
+	sed -e 's/@VERSION@/$(VERSION)-$(RELEASE)/' packaging/debian/control.in > "$(DEB_ROOT)/DEBIAN/control"
+	install -m 0755 packaging/debian/postinst "$(DEB_ROOT)/DEBIAN/postinst"
+	install -m 0755 packaging/debian/prerm "$(DEB_ROOT)/DEBIAN/prerm"
+	install -m 0755 packaging/debian/postrm "$(DEB_ROOT)/DEBIAN/postrm"
+	install -m 0644 packaging/debian/conffiles "$(DEB_ROOT)/DEBIAN/conffiles"
+	dpkg-deb --build --root-owner-group "$(DEB_ROOT)" "$(DEB_FILE)"
+	@printf '\nDEB package:\n%s\n' "$(DEB_FILE)"
 
 source: $(SOURCE_TAR)
 	@printf '%s\n' "$(SOURCE_TAR)"
