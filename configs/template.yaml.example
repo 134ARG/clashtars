@@ -4342,6 +4342,11 @@ rules:
 - DOMAIN-SUFFIX,springsunday.net,DIRECT
 - DOMAIN-SUFFIX,tjupt.org,DIRECT
 - DOMAIN-SUFFIX,totheglory.im,DIRECT
+- DOMAIN-SUFFIX,wanmei.com,DIRECT
+- DOMAIN-SUFFIX,wanmei.net,DIRECT
+- DOMAIN-SUFFIX,wmupd.com,DIRECT
+- DOMAIN-SUFFIX,perfectworldgames.com,DIRECT
+- DOMAIN-SUFFIX,perfectworld.com,DIRECT
 - GEOIP,CN,DIRECT,no-resolve
 - DOMAIN-SUFFIX,local,DIRECT
 - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
